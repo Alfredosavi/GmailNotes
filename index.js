@@ -35,6 +35,14 @@ const readline = require("readline");
 const { google } = require("googleapis");
 require("dotenv").config();
 
+const SerialPort = require("serialport");
+const Readline = require("@serialport/parser-readline");
+
+const port = new SerialPort("COM9", { baudRate: 9600 }); // test
+//subst socketIO -- RTOS -- OTA
+// const parser = port.pipe(new Readline({ delimiter: "\n" }));
+// port.setEncoding("ascii");
+
 const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"];
 const TOKEN_PATH = "token.json";
 
@@ -58,7 +66,7 @@ const AUTH = {
 
 setInterval(() => {
   authorize(AUTH, checkNote);
-}, 4000);
+}, 2550);
 
 function authorize(credentials, callback) {
   const { client_secret, client_id, redirect_uris } = credentials.installed;
@@ -100,7 +108,7 @@ function getNewToken(oAuth2Client, callback) {
 }
 
 function listLabels(auth) {
-  const gmail = google.gmail({ version: "v1", auth });
+  const gmail = google.gmail({ version: "v1", auth }); // v2?
   gmail.users.labels.list(
     {
       userId: "me",
@@ -120,17 +128,43 @@ function listLabels(auth) {
   );
 }
 
+function espMode(option) {
+  if (port.isOpen) {
+    port.write(option);
+  } else {
+    console.log("Not found port open");
+  }
+}
+
 function checkNote(auth) {
   const gmail = google.gmail({ version: "v1", auth });
   gmail.users.threads.list(
     {
       userId: "me",
-      maxResults: 2,
+      maxResults: 1,
     },
     (err, res) => {
       if (err) return console.log("The API returned an error: " + err);
       const notes = res.data.threads;
-      console.log(notes);
+      if (notes.length) {
+        console.log(notes);
+        notes.forEach((note) => {
+          if (note.snippet === "Desligar") {
+            espMode("0");
+          }
+          if (note.snippet === "Ligar") {
+            espMode("1");
+          }
+          if (
+            note.snippet === "Diminuir brilho 50%" ||
+            note.snippet === "Brilho 50%"
+          ) {
+            espMode("2");
+          }
+        });
+      } else {
+        console.log("No Notes found.");
+      }
     }
   );
 }
